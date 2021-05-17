@@ -1,0 +1,7 @@
+__pycache__/
+
+test_imgs/
+test_imgs/**
+
+test_videos/
+test_videos/**
