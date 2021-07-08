@@ -24,7 +24,7 @@ def play_video_from_npy(path):
     sleep_time = 0.01
     idx = 0
     try:
-        while(True):
+        while True:
             (img_depth, img_color) = read_npy_file(path, idx)
             
             idx += 1
