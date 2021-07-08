@@ -6,7 +6,7 @@ from pathlib import Path
 
 
 extensions = ['mp4', 'npy']
-sub_dir_name = 'rec0'
+sub_dir_name = 'rec6'
 file_name = '20210326_120239'
 ext = extensions[1]
 

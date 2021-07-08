@@ -1,3 +1,4 @@
+from textwrap import fill
 import numpy as np
 import cv2
 import os
@@ -64,7 +65,7 @@ def testfunc(img_depth, img_color):
 
     frame_HSV = cv2.cvtColor(img_color, cv2.COLOR_BGR2HSV)
     # (low_H, low_S, low_V), (high_H, high_S, high_V)
-    frame_thresholded = cv2.inRange(frame_HSV, (0, 70, 171), (60, 255, 255))
+    frame_thresholded = cv2.inRange(frame_HSV, (0, 100, 171), (180, 255, 255))
 
     kernel = np.ones((5, 5))
     img_thresh_opened = cv2.morphologyEx(frame_thresholded, cv2.MORPH_OPEN, kernel)
@@ -73,11 +74,8 @@ def testfunc(img_depth, img_color):
     # edge and contour
     img_edges = cv2.Canny(img_thresh_blurred, 80, 160)
     contours, _ = cv2.findContours(np.array(img_edges), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    #max_contour = max(contours, key=cv2.contourArea)
     img_contours = np.zeros_like(img_edges)
     cv2.drawContours(img_contours, contours, -1, (255,255,255), 2)
-
-    # max_contour borders the area we need
 
     # approx. contours
     approx_contours = []
@@ -97,8 +95,28 @@ def testfunc(img_depth, img_color):
 
     img_all_convex_hulls = np.zeros_like(img_edges)
     cv2.drawContours(img_all_convex_hulls, all_convex_hulls, -1, (255,255,255), 2)
+    hull_contours, _ = cv2.findContours(img_all_convex_hulls, cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_SIMPLE
+    )
+    max_hull_contour = max(hull_contours, key=cv2.contourArea)
+    max_hull_contour_img = np.zeros_like(img_edges)
+    cv2.drawContours(
+        max_hull_contour_img, max_hull_contour, -1, (255,255,255), 2, cv2.FILLED
+    )
 
-    return (img_depth, img_all_convex_hulls)
+    # fillPoly method (approxPolyDP?)
+    fill_poly_img = np.zeros_like(img_edges)
+    cv2.fillPoly(fill_poly_img, pts =[max_hull_contour], color=(255,255,255))
+
+    # where fill_poly_img is (255, 255, 255) -> keep img_depth values, otherwise 0
+    np.where
+
+    fill_poly_img
+
+    img_depth
+
+    print(cv2.contourArea(max_hull_contour))
+    return (img_depth, fill_poly_img)
 
 
 if __name__ == '__main__':
