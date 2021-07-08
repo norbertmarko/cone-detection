@@ -5,7 +5,7 @@ import sys
 import os
 
 num = 0
-path = ""
+path = "./meresek/rec0/"
 if (len(sys.argv) == 2):
     path = sys.argv[1]
 
@@ -22,6 +22,8 @@ try:
 
         cv2.imshow("color_image", color_image.astype(np.uint8))
         cv2.imshow("depth_image", depth_colormap)
+
+        
         
         if cv2.waitKey(1) == ord('q'):
             break
