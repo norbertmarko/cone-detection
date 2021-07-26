@@ -34,11 +34,12 @@ def play_video_from_npy(path):
 
             #* Put processing function here.
 
+
             polygon = create_poly(img_color)
             filtered_depth, min_dist, avg_dist = get_cone_depth(img_depth, polygon)
             center = get_cone_center(polygon)
-            
 
+            
             print(f"Current center pixel (x,y): {center}")
             print(f"Current minimum distance: {min_dist}")
             print(f"Current average distance: {avg_dist}")
@@ -67,7 +68,7 @@ def create_poly(img_color):
 
     frame_HSV = cv2.cvtColor(img_color, cv2.COLOR_BGR2HSV)
     # (low_H, low_S, low_V), (high_H, high_S, high_V)
-    frame_thresholded = cv2.inRange(frame_HSV, (165, 115, 150), (180, 255, 255))
+    frame_thresholded = cv2.inRange(frame_HSV, (0, 100, 171), (180, 255, 255))
 
     kernel = np.ones((5, 5))
     img_thresh_opened = cv2.morphologyEx(frame_thresholded, cv2.MORPH_OPEN, kernel)
@@ -137,11 +138,10 @@ def get_cone_center(polygon):
     (x, y), r = cv2.minEnclosingCircle(cnt)
     center = (int(x), int(y))
     radius = int(r)
-    #img = cv2.circle(polygon,center,radius,(0,255,0),2)
 
     return center
 
 
 if __name__ == '__main__':
-    path = "./meresek/rec6/"
+    path = "./meresek/rec1/"
     play_video_from_npy(path)
