@@ -33,8 +33,15 @@ def play_video_from_npy(path):
             colormap_depth = apply_colormap(img_depth)
 
             #* Put processing function here.
+
             polygon = create_poly(img_color)
-            filtered_depth = get_cone_depth(img_depth, polygon)
+            filtered_depth, min_dist, avg_dist = get_cone_depth(img_depth, polygon)
+            center = get_cone_center(polygon)
+            
+
+            print(f"Current center pixel (x,y): {center}")
+            print(f"Current minimum distance: {min_dist}")
+            print(f"Current average distance: {avg_dist}")
 
             # display
             cv2.imshow("color_image", polygon.astype(datatype))
@@ -60,7 +67,7 @@ def create_poly(img_color):
 
     frame_HSV = cv2.cvtColor(img_color, cv2.COLOR_BGR2HSV)
     # (low_H, low_S, low_V), (high_H, high_S, high_V)
-    frame_thresholded = cv2.inRange(frame_HSV, (0, 100, 171), (180, 255, 255))
+    frame_thresholded = cv2.inRange(frame_HSV, (165, 115, 150), (180, 255, 255))
 
     kernel = np.ones((5, 5))
     img_thresh_opened = cv2.morphologyEx(frame_thresholded, cv2.MORPH_OPEN, kernel)
@@ -111,14 +118,30 @@ def get_cone_depth(img_depth, polygon):
     # set img_depth to 0 where the mask is True (shapes match)
     img_depth[mask] = 0
 
-    #TODO: final depth by taking average and min dist
+    min_dist = np.max(img_depth[:, :])
+    avg_dist = np.average(img_depth[:, :])
 
-    return (img_depth)
+    return (img_depth, min_dist, avg_dist)
 
 
-def get_cone_center():
-    pass
+def get_cone_center(polygon):
+    """
+    Returns traffic cone center 
+    on the image (x, y) from the
+    minimum enclosing circle.
+    """
+    contours, _ = cv2.findContours(
+        polygon, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    cnt = contours[0]
+    (x, y), r = cv2.minEnclosingCircle(cnt)
+    center = (int(x), int(y))
+    radius = int(r)
+    #img = cv2.circle(polygon,center,radius,(0,255,0),2)
+
+    return center
+
 
 if __name__ == '__main__':
-    path = "./meresek/rec1/"
+    path = "./meresek/rec6/"
     play_video_from_npy(path)
