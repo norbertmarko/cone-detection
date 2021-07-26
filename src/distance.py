@@ -33,11 +33,12 @@ def play_video_from_npy(path):
             colormap_depth = apply_colormap(img_depth)
 
             #* Put processing function here.
-            (img_depth, img_color) = testfunc(img_depth, img_color)
+            polygon = create_poly(img_color)
+            filtered_depth = get_cone_depth(img_depth, polygon)
 
             # display
-            cv2.imshow("color_image", img_color.astype(datatype))
-            cv2.imshow("depth_image", colormap_depth.astype(datatype))
+            cv2.imshow("color_image", polygon.astype(datatype))
+            cv2.imshow("depth_image", filtered_depth.astype(datatype))
             
             # required for proper display
             if cv2.waitKey(1) == ord('q'): break
@@ -52,16 +53,10 @@ def apply_colormap(img_depth):
     return cv2.applyColorMap(cv2.convertScaleAbs(img_depth, alpha=0.03), 9)
 
 
-#TODO: convert numpy files to .mp4 to calibrate HSV for it
-
-
-def testfunc(img_depth, img_color):
+def create_poly(img_color):
     """
-    Function with experiments.
+    Create a polygon around the traffic cone. 
     """
-
-    #TODO: filter area on color image, collect depth 
-    #values from filtered area,than give back final depth by taking average and min dist
 
     frame_HSV = cv2.cvtColor(img_color, cv2.COLOR_BGR2HSV)
     # (low_H, low_S, low_V), (high_H, high_S, high_V)
@@ -93,6 +88,7 @@ def testfunc(img_depth, img_color):
     for ac in approx_contours:
         all_convex_hulls.append(cv2.convexHull(ac))
 
+
     img_all_convex_hulls = np.zeros_like(img_edges)
     cv2.drawContours(img_all_convex_hulls, all_convex_hulls, -1, (255,255,255), 2)
     hull_contours, _ = cv2.findContours(img_all_convex_hulls, cv2.RETR_EXTERNAL,
@@ -103,21 +99,25 @@ def testfunc(img_depth, img_color):
     cv2.drawContours(
         max_hull_contour_img, max_hull_contour, -1, (255,255,255), 2, cv2.FILLED
     )
+    polygon = np.zeros_like(img_edges)
+    cv2.fillPoly(polygon, pts =[max_hull_contour], color=(255,255,255))
 
-    # fillPoly method (approxPolyDP?)
-    fill_poly_img = np.zeros_like(img_edges)
-    cv2.fillPoly(fill_poly_img, pts =[max_hull_contour], color=(255,255,255))
+    return polygon
 
-    # where fill_poly_img is (255, 255, 255) -> keep img_depth values, otherwise 0
-    np.where
 
-    fill_poly_img
+def get_cone_depth(img_depth, polygon):
+    # create a boolean mask (if the value is less than 255 -> True) 
+    mask = polygon < 255
+    # set img_depth to 0 where the mask is True (shapes match)
+    img_depth[mask] = 0
 
-    img_depth
+    #TODO: final depth by taking average and min dist
 
-    print(cv2.contourArea(max_hull_contour))
-    return (img_depth, fill_poly_img)
+    return (img_depth)
 
+
+def get_cone_center():
+    pass
 
 if __name__ == '__main__':
     path = "./meresek/rec1/"
