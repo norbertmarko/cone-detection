@@ -241,7 +241,7 @@ if __name__ == '__main__':
 	ap.add_argument(
 		"-r", 
 		"--reference",
-		required=True,
+		required=False,
 		help="path to the input reference image"
 	)
 	args = vars(ap.parse_args())
