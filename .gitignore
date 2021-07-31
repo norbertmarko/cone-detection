@@ -6,5 +6,11 @@ test_imgs/**
 test_videos/
 test_videos/**
 
+examples/
+examples/**
+
+reference.jpg
+
 meresek/
 meresek/**
+
