@@ -9,8 +9,8 @@ def read_npy_file(root_path: str, idx: int) -> Tuple[np.array, np.array]:
     """
     Loads a pair of .npy files (color and depth image).
     """
-    img_color = Path(root_path) / "frame_color_" + str(idx) + ".npy"
-    img_depth = Path(root_path) / "frame_depth_" + str(idx) + ".npy"
+    img_color = np.load(Path(root_path) / "frame_color_" + str(idx) + ".npy")
+    img_depth = np.load(Path(root_path) / "frame_depth_" + str(idx) + ".npy")
     return (img_color, img_depth)
 
 

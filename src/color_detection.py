@@ -56,8 +56,48 @@ def find_color_card(image: np.array) -> None:
 	# return the color matching card to the calling function
 	return card
 
-
 def main(img_path: str) -> None:
+	"""
+	Main function.
+	"""
+	image = cv.imread(img_path)
+	print('[INFO] Image Loaded! (dtype: %s)' % image.dtype)
+
+	# first array: x >= , second array: x <= (B, G, R)
+	boundaries = ([0, 0, 200], [121, 151, 255])
+	
+	lower, upper = boundaries
+	lower = np.array(lower, dtype=np.uint8)
+	upper = np.array(upper, dtype=np.uint8)
+
+	# find the colors within the specified boundaries and apply
+	# the mask
+	mask = cv.inRange(image, lower, upper)
+	output = cv.bitwise_and(image, image, mask= mask)
+	
+	# show the images
+	cv.imshow("images", np.hstack([image, output]))
+	cv.waitKey(0)
+
+	kernel = cv.getStructuringElement(cv.MORPH_RECT, (5, 5))
+	closing = cv.morphologyEx(output, cv.MORPH_CLOSE, kernel)
+	blurred = cv.medianBlur(closing, 5)
+
+	img_edges = cv.Canny(blurred, 30, 160)
+
+	# cnts have a length of 2, it contains the contours (cnts[0]), and the 
+	# hierarchy (cnts[1])
+	# the hierarchy have the shape (1, len(cnts[0]), 4)
+	cnts, hierarcy = cv.findContours(img_edges.copy(), cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+	contours = sorted(cnts, key = cv.contourArea, reverse = True)
+	
+	cv.drawContours(img_edges, contours, 14, (0,255,0), 3)
+
+	cv.imshow("blurred", img_edges)
+	cv.waitKey(0)
+
+
+def working_main(img_path: str) -> None:
 	"""
 	#https://www.pyimagesearch.com/2014/08/04/opencv-python-color-detection/
 	"""
