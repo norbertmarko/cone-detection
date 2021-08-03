@@ -56,6 +56,31 @@ def find_color_card(image: np.array) -> None:
 	# return the color matching card to the calling function
 	return card
 
+def create_poly_updated(image):
+
+	# first array: x >= , second array: x <= (B, G, R)
+	boundaries = ([0, 0, 200], [121, 151, 255])
+
+	lower, upper = boundaries
+	lower = np.array(lower, dtype=np.uint8)
+	upper = np.array(upper, dtype=np.uint8)
+
+	# find the colors within the specified boundaries and apply
+	# the mask
+	mask = cv.inRange(image, lower, upper)
+	output = cv.bitwise_and(image, image, mask= mask)
+	
+	kernel = cv.getStructuringElement(cv.MORPH_RECT, (5, 5))
+	closing = cv.morphologyEx(output, cv.MORPH_CLOSE, kernel)
+	blurred = cv.medianBlur(closing, 5)
+	img_edges = cv.Canny(blurred, 30, 160)
+	cnts, hierarcy = cv.findContours(img_edges.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+	cnts = imutils.grab_contours(cnts)
+	contours = sorted(cnts, key=cv.contourArea, reverse=True)[:1]
+	img_cnts = np.zeros_like(image, dtype=np.uint8)
+	cv.drawContours(img_cnts, contours, -1, (255, 255, 255), cv.FILLED)
+
+
 def main(img_path: str) -> None:
 	"""
 	Main function.
@@ -75,9 +100,6 @@ def main(img_path: str) -> None:
 	mask = cv.inRange(image, lower, upper)
 	output = cv.bitwise_and(image, image, mask= mask)
 	
-	# show the images
-	cv.imshow("images", np.hstack([image, output]))
-	cv.waitKey(0)
 
 	kernel = cv.getStructuringElement(cv.MORPH_RECT, (5, 5))
 	closing = cv.morphologyEx(output, cv.MORPH_CLOSE, kernel)
@@ -88,13 +110,27 @@ def main(img_path: str) -> None:
 	# cnts have a length of 2, it contains the contours (cnts[0]), and the 
 	# hierarchy (cnts[1])
 	# the hierarchy have the shape (1, len(cnts[0]), 4)
-	cnts, hierarcy = cv.findContours(img_edges.copy(), cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
-	contours = sorted(cnts, key = cv.contourArea, reverse = True)
+	cnts, hierarcy = cv.findContours(img_edges.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
 	
-	cv.drawContours(img_edges, contours, 14, (0,255,0), 3)
+	# approx_contours = []
+	# for c in cnts:
+	# 	peri = cv.arcLength(c, True)
+	# 	approx = cv.approxPolyDP(c, 0.015 * peri, True)
+	# 	approx_contours.append(approx)
 
-	cv.imshow("blurred", img_edges)
+	contours = sorted(cnts, key=cv.contourArea, reverse=True)[:1]
+
+	polygon = np.zeros_like(image, dtype=np.uint8)
+	cv.fillPoly(polygon, contours, (255, 255, 255))
+
+	# img_cnts = np.zeros_like(image, dtype=np.uint8)
+	# cv.drawContours(img_cnts, contours, -1, (255,255,255), cv.FILLED)
+
+		# show the images
+	cv.imshow("images", np.hstack([polygon, image, output]))
 	cv.waitKey(0)
+	# cv.imshow("blurred", image)
+	# cv.waitKey(0)
 
 
 def working_main(img_path: str) -> None:

@@ -39,11 +39,11 @@ def play_video_from_npy(path):
                 polygon, blurred = create_poly(img_color)
                 filtered_depth, min_dist, avg_dist = get_cone_depth(img_depth, polygon)
                 center = get_cone_center(polygon)
-
+				
                 
-                print(f"Current center pixel (x,y): {center}")
-                print(f"Current minimum distance: {min_dist}")
-                print(f"Current average distance: {avg_dist}")
+                print(f"Current center pixel (x,y): {type(center[0])}")
+                print(f"Current minimum distance: {type(min_dist)}")
+                print(f"Current average distance: {type(avg_dist)}")
 
                 # display
                 cv.imshow("original_color",img_color.astype(datatype))
@@ -66,42 +66,66 @@ def play_video_from_npy(path):
 def apply_colormap(img_depth):
     return cv.applyColorMap(cv.convertScaleAbs(img_depth, alpha=0.03), 9)
 
-
 def create_poly(image):
 
-    # first array: x >= , second array: x <= (B, G, R)
-    boundaries = ([0, 0, 200], [121, 151, 255])
+	# first array: x >= , second array: x <= (B, G, R)
+	boundaries = ([0, 0, 200], [121, 151, 255])
 
-    lower, upper = boundaries
-    lower = np.array(lower, dtype=np.uint8)
-    upper = np.array(upper, dtype=np.uint8)
+	lower, upper = boundaries
+	lower = np.array(lower, dtype=np.uint8)
+	upper = np.array(upper, dtype=np.uint8)
 
-    # find the colors within the specified boundaries and apply
-    # the mask
-    mask = cv.inRange(image, lower, upper)
-    output = cv.bitwise_and(image, image, mask= mask)
-
-    # postprocessing operations
-    kernel_sizes = [(3, 3), (5, 5), (7, 7)]
-    size = kernel_sizes[1]
-    kernel = cv.getStructuringElement(cv.MORPH_RECT, size)
-    closing = cv.morphologyEx(output, cv.MORPH_CLOSE, kernel)
-
-    #TODO: try bilateral blur - reduces noise while preserving edges
-    blurred = cv.medianBlur(closing, 5)
-    # edge detection
-    img_edges = cv.Canny(blurred, 30, 160)
-    # find contours (segments?)
-    cnts = cv.findContours(img_edges.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-    cnts = imutils.grab_contours(cnts)
-    cnts = sorted(cnts, key = cv.contourArea, reverse=True)
-
-    img_contours = np.zeros_like(img_edges)
-    cv.drawContours(img_contours, cnts, -1, (255,255,255), 3)
-    polygon = np.zeros_like(img_edges)
-    cv.fillPoly(polygon, pts =[cnts[0]], color=(255,255,255))
+	# find the colors within the specified boundaries and apply
+	# the mask
+	mask = cv.inRange(image, lower, upper)
+	output = cv.bitwise_and(image, image, mask= mask)
+	
+	kernel = cv.getStructuringElement(cv.MORPH_RECT, (5, 5))
+	closing = cv.morphologyEx(output, cv.MORPH_CLOSE, kernel)
+	blurred = cv.medianBlur(closing, 5)
+	img_edges = cv.Canny(blurred, 30, 160)
+	cnts, hierarcy = cv.findContours(img_edges.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+	contours = sorted(cnts, key=cv.contourArea, reverse=True)[:1]
+	polygon = np.zeros_like(img_edges)
+	cv.drawContours(polygon, contours, -1, (255, 255, 255), cv.FILLED)
+	return polygon, blurred
     
-    return polygon, blurred
+
+# def create_poly(image):
+
+#     # first array: x >= , second array: x <= (B, G, R)
+#     boundaries = ([0, 0, 200], [121, 151, 255])
+
+#     lower, upper = boundaries
+#     lower = np.array(lower, dtype=np.uint8)
+#     upper = np.array(upper, dtype=np.uint8)
+
+#     # find the colors within the specified boundaries and apply
+#     # the mask
+#     mask = cv.inRange(image, lower, upper)
+#     output = cv.bitwise_and(image, image, mask= mask)
+
+#     # postprocessing operations
+#     kernel_sizes = [(3, 3), (5, 5), (7, 7)]
+#     size = kernel_sizes[1]
+#     kernel = cv.getStructuringElement(cv.MORPH_RECT, size)
+#     closing = cv.morphologyEx(output, cv.MORPH_CLOSE, kernel)
+
+#     #TODO: try bilateral blur - reduces noise while preserving edges
+#     blurred = cv.medianBlur(closing, 5)
+#     # edge detection
+#     img_edges = cv.Canny(blurred, 30, 160)
+#     # find contours (segments?)
+#     cnts = cv.findContours(img_edges.copy(), cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+#     cnts = imutils.grab_contours(cnts)
+#     cnts = sorted(cnts, key = cv.contourArea, reverse=True)
+
+#     img_contours = np.zeros_like(img_edges)
+#     cv.drawContours(img_contours, cnts, -1, (255,255,255), 3)
+#     polygon = np.zeros_like(img_edges)
+#     cv.fillPoly(polygon, pts =[cnts[0]], color=(255,255,255))
+    
+#     return polygon, blurred
 
 
 def old_poly(img_color):
@@ -165,7 +189,7 @@ def get_cone_depth(img_depth, polygon):
     min_dist = np.max(img_depth[:, :])
     avg_dist = np.average(img_depth[:, :])
 
-    return (img_depth, min_dist, avg_dist)
+    return (img_depth, np.float32(min_dist), np.float32(avg_dist))
 
 
 def get_cone_center(polygon):
@@ -179,12 +203,12 @@ def get_cone_center(polygon):
     )
     cnt = contours[0]
     (x, y), r = cv.minEnclosingCircle(cnt)
-    center = (int(x), int(y))
+    center = [np.int32(x), np.int32(y)]
     radius = int(r)
 
     return center
 
 
 if __name__ == '__main__':
-    path = "./meresek/rec2/"
+    path = "./meresek/rec1/"
     play_video_from_npy(path)
