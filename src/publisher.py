@@ -1,8 +1,9 @@
+import sys
 from typing import Tuple
 # ROS2 imports
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Header, Float32, Int32MultiArray
+from std_msgs.msg import Header, Float64, Int32MultiArray
 from sensor_msgs.msg import Image
 # Computer Vision Imports
 from cv_bridge import CvBridge
@@ -26,13 +27,13 @@ class ROSPublisher(Node):
         self.cone_center_publisher_ = self.create_publisher(
             Int32MultiArray, 'cv/center_cone', 10
         )
-        # minimum distance publisher (float32)
+        # minimum distance publisher (float64)
         self.min_dist_publisher_ = self.create_publisher(
-            Float32, 'cv/min_dist_cone', 10
+            Float64, 'cv/min_dist_cone', 10
         )
-        # average distance publisher (float32)
+        # average distance publisher (float64)
         self.avg_dist_publisher_ = self.create_publisher(
-            Float32, 'cv/avg_dist_cone', 10
+            Float64, 'cv/avg_dist_cone', 10
         )
         # depth publisher (image)
         self.depth_image_publisher_ = self.create_publisher(
@@ -94,10 +95,10 @@ class ROSPublisher(Node):
         min_dist = np.max(img_depth[:, :])
         avg_dist = np.average(img_depth[:, :])
 
-        return (np.float32(min_dist), np.float32(avg_dist))
+        return (float(min_dist), float(avg_dist))
 
 
-    def get_cone_center(polygon: np.array) -> Tuple[int, int]:
+    def get_cone_center(self, polygon: np.array) -> Tuple[int, int]:
         """
         Returns traffic cone center 
         on the image (x, y) from the
@@ -109,8 +110,8 @@ class ROSPublisher(Node):
         )
         cnt = contours[0]
         (x, y), r = cv.minEnclosingCircle(cnt)
-        center = [np.int32(x), np.int32(y)]
-        radius = np.int32(r)
+        center = [int(x), int(y)]
+        radius = int(r)
 
         return center
 
@@ -160,7 +161,7 @@ class ROSPublisher(Node):
                 aligned_frames.get_depth_frame().get_data()
             )
             img_color = np.asanyarray(
-                aligned_frames.get_color_frame().get.data()
+                aligned_frames.get_color_frame().get_data()
             )
 
             try:
@@ -179,14 +180,15 @@ class ROSPublisher(Node):
                 cone_center_msg = Int32MultiArray()
                 cone_center_msg.data = center
 
-                min_dist_msg = Float32
+                min_dist_msg = Float64()
                 min_dist_msg.data = min_dist
 
-                avg_dist_msg = Float32
+                avg_dist_msg = Float64()
                 avg_dist_msg.data = avg_dist
 
+                #TODO: refactor to the same format as above
                 depth_img_msg = self.br.cv2_to_imgmsg(
-                    np.uint8(img_depth_filtered), encoding='bgr8'
+                    np.uint8(img_depth_filtered), encoding='passthrough'
                 )
                 depth_img_msg.header = Header(
                     frame_id="depth", stamp=self.get_clock().now().to_msg()
@@ -197,8 +199,11 @@ class ROSPublisher(Node):
                 self.avg_dist_publisher_.publish(avg_dist_msg)
                 self.depth_image_publisher_.publish(depth_img_msg)
                 self.get_logger().info('Publishing...')
-            except:
-                pass
+            except Exception as e:
+                print(
+                    '[INFO] Error (Exception) on line {}'.format(
+                    sys.exc_info()[-1].tb_lineno), type(e).__name__, e
+                )
 
         except Exception as e:
             print("[INFO] Exception cause: %s" % e)
