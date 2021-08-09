@@ -1,6 +1,7 @@
 from typing import Tuple
 import argparse
 from pathlib import Path
+import time
 
 import cv2 as cv
 import numpy as np
@@ -15,46 +16,87 @@ def custom_test(frame: np.array) -> np.array:
 	return frame
 
 
-def read_npy_file(root_path: str, idx: int) -> Tuple[np.array, np.array]:
+# File Handler Functions
+
+def read_npy_dir(root_path: str) -> Tuple[list, list]:
 	"""
-	Loads a pair of .npy files (color and depth image).
+	Reads .npy files with the given pattern, and returns
+	them in a sorted pair of lists (color and depth image).
 	"""
-	img_color = np.load(Path(root_path) / "frame_color_" + str(idx) + ".npy")
-	img_depth = np.load(Path(root_path) / "frame_depth_" + str(idx) + ".npy")
-	return (img_color, img_depth)
+	img_color = sorted(
+		Path(root_path).glob('frame_color_*.npy'), key=lambda path: int(path.stem.rsplit("_", 1)[1])
+	)
+	img_depth = sorted(
+		Path(root_path).glob('frame_depth_*.npy', ), key=lambda path: int(path.stem.rsplit("_", 1)[1])
+	)
+	return img_color, img_depth
 
 
-def read_mp4_file(file_name: str, ext: str='mp4') -> str:
+def read_mp4_file(file_name: str) -> str:
 	"""
 	Loads .mp4 files.
 	"""
-	return Path(__file__).parent / 'test_videos' / f'{file_name}.{ext}'
+	return Path(__file__).parent / 'test_videos' / f'{file_name}'
 
 
-def play_npy_file():
+def read_image_file(img_path: str) -> None:
 	"""
+	Loads a single image (with custom processing).
 	"""
-	pass
+	img_color = cv.imread(img_path)
+	print('[INFO] Image Loaded! (dtype: %s)' % img_color.dtype)
+
+	# Custom functions here.
+	frame_preprocessed = custom_test(img_color)
+
+	cv.imshow("images", np.hstack([img_color, frame_preprocessed]))
+	cv.waitKey(0)
+
+	print("[INFO] Image closed.")
 
 
-def play_mp4_file(file_name: str, is_resize: bool=True):
+def play_npy_dir(root_path: str, sleep_time: float=0.01) -> None:
 	"""
+	Loops trough the .npy frames (color and depth) and plays them
+	as a video sequence (with custom processing).
+	"""
+	(img_color_list, img_depth_list) = read_npy_dir(root_path)
+	for i in range(0, len(img_color_list)):
+		img_color = np.load(img_color_list[i])
+		img_depth = np.load(img_depth_list[i])
+
+
+		# Custom functions here.
+		frame_processed = custom_test(img_color)
+
+		
+		cv.imshow("Color Image", img_color)
+		cv.imshow("Processed Image", frame_processed)
+		if cv.waitKey(1) == ord('q'): break
+		time.sleep(sleep_time)
+
+	print("[INFO] Video sequence end.")
+
+
+def play_mp4_file(file_name: str, is_resize: bool=True) -> None:
+	"""
+	Plays .mp4 video file (with custom processing).
 	"""
 	cap = cv.VideoCapture(str(read_mp4_file(file_name)))
 	while True:
-		ret, frame = cap.read()
+		ret, img_color = cap.read()
 		if ret:
 			if is_resize:
-				frame = cv.resize(
-					frame, (int(frame.shape[1] / 2.0), int(frame.shape[0] / 2.0))
+				img_color = cv.resize(
+					img_color, (int(img_color.shape[1] / 2.0), int(img_color.shape[0] / 2.0))
 				)
 			
 			
 			# Custom functions here.
-			frame_processed = custom_test(frame)
+			frame_processed = custom_test(img_color)
 
 			
-			cv.imshow("Raw Image", frame)
+			cv.imshow("Color Image", img_color)
 			cv.imshow("Processed Image", frame_processed)
 		else:
 			# loops the video when there is no return value
@@ -66,17 +108,38 @@ def play_mp4_file(file_name: str, is_resize: bool=True):
 	cv.destroyAllWindows()
 
 
-def main() -> None:
-	play_mp4_file('20210323_113620')
+def main(arg: str) -> None:
+
+	# image
+	read_image_file(arg)
+	
+	# .npy
+	#play_npy_dir(arg)
+
+	# .mp4
+	#play_mp4_file(arg)
 
 
 if __name__ == '__main__':
 	ap = argparse.ArgumentParser()
 	ap.add_argument(
+		"-d",
+		"--dir",
+		default='./meresek/rec5/', 
+		help = "Path to .npy directory."
+	)
+	ap.add_argument(
+		"-v",
+		"--video",
+		default='20210323_113620.mp4', 
+		help = "Path to video file."
+	)
+	ap.add_argument(
 		"-i",
 		"--image",
 		default='src/test_imgs/boja.png', 
-		help = "Path to the image."
+		help = "Path to image."
 	)
 	args = vars(ap.parse_args())
-	main()
+	# change argument type if needed + switch function in main()
+	main(args["image"])
