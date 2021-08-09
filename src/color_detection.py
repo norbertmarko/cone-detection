@@ -176,14 +176,8 @@ def working_main(img_path: str) -> None:
 	polygon = np.zeros_like(img_edges)
 	cv.fillPoly(polygon, pts =[cnts[0]], color=(255,255,255))
 
-	#! Think about how one could use these to filter drivable area
-	#TODO: create ROS2 node (with proper structure)
-	#TODO: create a testing file for the node to implement new features
-	#TODO: how to calculate distance from area (like car bounding boxes)
-	#TODO: fix contour area switching problem
-	#TODO: Put convex around the contour (research contour, convex hull)
-	#TODO: histogram matching
-
+	
+	
 	# show the images
 	cv.imshow("Edge Detection: {}".format(
 		9), polygon

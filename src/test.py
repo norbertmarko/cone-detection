@@ -5,8 +5,58 @@ import time
 
 import cv2 as cv
 import numpy as np
+from numpy.lib.polynomial import poly
+
+
+#! Think about how one could use these to filter drivable area
+#TODO: Histogram matching. (1. go trough videos, cut images from bad result frames)
+#TODO: calc_distance: implement more precise calculations (car bounding box method?)
+#TODO: get_cone_center: implement a better solution
+#TODO: fix contour area switching problem
+#TODO: (not priority!) try bilateral blur - reduces noise while preserving edges
+
 
 ## COMPUTER VISION FUNCTIONS (swap them as needed for testing)
+
+def filter_depth_img(img_depth: np.array, poly: np.array) -> np.array:
+	"""
+	Sets depth image pixels which do not
+	belong to the cone (polygon) to 0.
+	"""
+	mask = poly < 255
+	img_depth[mask] = 0
+
+	return img_depth
+
+
+def calc_distance(img_depth: np.array) -> Tuple[float, float]:
+	"""
+	Returns the cone's minimal and average distance.
+	"""
+	#TODO: streamline function, implement more precise calculations
+	min_dist = np.max(img_depth[:, :])
+	avg_dist = np.average(img_depth[:, :])
+
+	return (float(min_dist), float(avg_dist))
+
+
+def get_cone_center(polygon: np.array) -> Tuple[int, int]:
+	"""
+	Returns traffic cone center 
+	on the image (x, y) from the
+	minimum enclosing circle.
+	"""
+	#TODO: implement a better solution
+	contours, _ = cv.findContours(
+		polygon, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
+	)
+	cnt = contours[0]
+	(x, y), r = cv.minEnclosingCircle(cnt)
+	center = [int(x), int(y)]
+	radius = int(r)
+
+	return center
+
 
 def calc_cone_polygon(img_color: np.array) -> np.array:
 	"""
@@ -39,7 +89,6 @@ def calc_cone_polygon(img_color: np.array) -> np.array:
 	return polygon
 
 
-
 ## FILE HANDLER FUNCTIONS (do not modify)
 
 def read_npy_dir(root_path: str) -> Tuple[list, list]:
@@ -70,8 +119,12 @@ def read_image_file(img_path: str) -> None:
 	img_color = cv.imread(img_path)
 	print('[INFO] Image Loaded! (dtype: %s)' % img_color.dtype)
 
+	#######
+
 	# Custom functions here.
 	frame_processed = calc_cone_polygon(img_color)
+
+	#######
 
 	cv.imshow("Color Image", img_color)
 	cv.imshow("Processed Image", frame_processed)
@@ -90,13 +143,23 @@ def play_npy_dir(root_path: str, sleep_time: float=0.01) -> None:
 		img_color = np.load(img_color_list[i])
 		img_depth = np.load(img_depth_list[i])
 
+		#######
 
 		# Custom functions here.
-		frame_processed = calc_cone_polygon(img_color)
+		polygon = calc_cone_polygon(img_color)
+		img_depth_filtered = filter_depth_img(img_depth, polygon)
+		min_dist, avg_dist = calc_distance(img_depth_filtered)
+		center = get_cone_center(polygon)
 
+		# Print results (debug)
+		print(f"Current center pixel (x,y): {center}")
+		print(f"Current minimum distance: {min_dist}")
+		print(f"Current average distance: {avg_dist}")
 		
+		#######
+
 		cv.imshow("Color Image", img_color)
-		cv.imshow("Processed Image", frame_processed)
+		cv.imshow("Processed Image", polygon)
 		if cv.waitKey(1) == ord('q'): break
 		time.sleep(sleep_time)
 
@@ -116,11 +179,13 @@ def play_mp4_file(file_name: str, is_resize: bool=True) -> None:
 					img_color, (int(img_color.shape[1] / 2.0), int(img_color.shape[0] / 2.0))
 				)
 			
+			#######
 			
 			# Custom functions here.
 			frame_processed = calc_cone_polygon(img_color)
 
-			
+			#######
+
 			cv.imshow("Color Image", img_color)
 			cv.imshow("Processed Image", frame_processed)
 		else:
@@ -137,10 +202,10 @@ def play_mp4_file(file_name: str, is_resize: bool=True) -> None:
 def main(arg: str) -> None:
 
 	# image
-	read_image_file(arg)
+	#read_image_file(arg)
 	
 	# .npy
-	#play_npy_dir(arg)
+	play_npy_dir(arg)
 
 	# .mp4
 	#play_mp4_file(arg)
@@ -151,7 +216,7 @@ if __name__ == '__main__':
 	ap.add_argument(
 		"-d",
 		"--dir",
-		default='./meresek/rec5/', 
+		default='./meresek/rec1/', 
 		help = "Path to .npy directory."
 	)
 	ap.add_argument(
@@ -168,4 +233,4 @@ if __name__ == '__main__':
 	)
 	args = vars(ap.parse_args())
 	# change argument type if needed + switch function in main()
-	main(args["image"])
+	main(args["dir"])
