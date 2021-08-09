@@ -6,17 +6,41 @@ import time
 import cv2 as cv
 import numpy as np
 
+## COMPUTER VISION FUNCTIONS (swap them as needed for testing)
 
-# Custom test function
-def custom_test(frame: np.array) -> np.array:
+def calc_cone_polygon(img_color: np.array) -> np.array:
 	"""
-	Test function for file loaders.
+	Calculates polygon around the traffic cone. 
 	"""
-	frame = cv.cvtColor(frame, cv.COLOR_BGR2HSV)
-	return frame
+	#TODO: Histogram matching.
+	# Boundaries
+	lower, upper = (
+		np.array([0, 0, 200], dtype=np.uint8), 
+		np.array([121, 151, 255], dtype=np.uint8)
+	)
+	# find the colors within the specified boundaries and apply
+	# the mask
+	mask = cv.inRange(img_color, lower, upper)
+	output = cv.bitwise_and(img_color, img_color, mask=mask)
+	# prepare image
+	kernel = cv.getStructuringElement(cv.MORPH_RECT, (5, 5))
+	closing = cv.morphologyEx(output, cv.MORPH_CLOSE, kernel)
+	blurred = cv.medianBlur(closing, 5)
+	# edges and contours
+	img_edges = cv.Canny(blurred, 30, 160)
+	cnts, _ = cv.findContours(
+		img_edges.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
+	)
+	sorted_cnts = sorted(cnts, key=cv.contourArea, reverse=True)[:1]
+	polygon = np.zeros_like(img_edges)
+	cv.drawContours(
+		polygon, sorted_cnts, -1, (255, 255, 255), cv.FILLED
+	)        
+	return polygon
 
 
-# File Handler Functions
+
+## FILE HANDLER FUNCTIONS (do not modify)
 
 def read_npy_dir(root_path: str) -> Tuple[list, list]:
 	"""
@@ -47,9 +71,10 @@ def read_image_file(img_path: str) -> None:
 	print('[INFO] Image Loaded! (dtype: %s)' % img_color.dtype)
 
 	# Custom functions here.
-	frame_preprocessed = custom_test(img_color)
+	frame_processed = calc_cone_polygon(img_color)
 
-	cv.imshow("images", np.hstack([img_color, frame_preprocessed]))
+	cv.imshow("Color Image", img_color)
+	cv.imshow("Processed Image", frame_processed)
 	cv.waitKey(0)
 
 	print("[INFO] Image closed.")
@@ -67,7 +92,7 @@ def play_npy_dir(root_path: str, sleep_time: float=0.01) -> None:
 
 
 		# Custom functions here.
-		frame_processed = custom_test(img_color)
+		frame_processed = calc_cone_polygon(img_color)
 
 		
 		cv.imshow("Color Image", img_color)
@@ -93,7 +118,7 @@ def play_mp4_file(file_name: str, is_resize: bool=True) -> None:
 			
 			
 			# Custom functions here.
-			frame_processed = custom_test(img_color)
+			frame_processed = calc_cone_polygon(img_color)
 
 			
 			cv.imshow("Color Image", img_color)
@@ -107,6 +132,7 @@ def play_mp4_file(file_name: str, is_resize: bool=True) -> None:
 	print("[INFO] Video sequence end.")
 	cv.destroyAllWindows()
 
+## MAIN PARTS
 
 def main(arg: str) -> None:
 
