@@ -5,18 +5,68 @@ import time
 
 import cv2 as cv
 import numpy as np
-from numpy.lib.polynomial import poly
+from skimage import exposure
+
+import matplotlib.pyplot as plt
 
 
 #! Think about how one could use these to filter drivable area
 #TODO: Histogram matching. (1. go trough videos, cut images from bad result frames)
 #TODO: calc_distance: implement more precise calculations (car bounding box method?)
 #TODO: get_cone_center: implement a better solution
+#TODO: check all functions for all .npy sequences
 #TODO: fix contour area switching problem
 #TODO: (not priority!) try bilateral blur - reduces noise while preserving edges
 
 
 ## COMPUTER VISION FUNCTIONS (swap them as needed for testing)
+
+def match_hist(img_src: np.array, img_ref: np.array) -> np.array:
+	"""
+	Histogram matching function.
+	"""
+
+	matched = exposure.match_histograms(img_src, img_ref, multichannel=True)
+
+	grid = (2, 3)
+	fig = plt.figure(figsize=(12, 6))
+	ax1 = plt.subplot2grid(grid, (0, 0))
+	ax2 = plt.subplot2grid(grid, (0, 1))
+	ax3 = plt.subplot2grid(grid, (0, 2))
+
+	ax4 = plt.subplot2grid(grid, (1, 0))
+	ax5 = plt.subplot2grid(grid, (1, 1))
+	ax6 = plt.subplot2grid(grid, (1, 2))
+
+	ax1.set_title("Source Image")
+	ax1.axis('off')
+
+	ax2.set_title("Reference Image")
+	ax2.axis('off')
+
+	ax3.set_title("Result")
+	ax3.axis('off')
+
+	ax1.imshow(cv.cvtColor(img_src, cv.COLOR_BGR2RGB))
+	ax2.imshow(cv.cvtColor(img_ref, cv.COLOR_BGR2RGB))
+	ax3.imshow(cv.cvtColor(matched, cv.COLOR_BGR2RGB))
+
+	# calculate histograms for display
+	axs = (ax4, ax5, ax6)
+
+	for (i, image) in enumerate((img_src, img_ref, matched)):
+		image = cv.cvtColor(image, cv.COLOR_BGR2RGB)
+		channels = cv.split(image)
+		colors = ("r", "g", "b")
+		for(channel, color) in zip(channels, colors):
+			hist = cv.calcHist([channel], [0], None, [256], [0, 256])
+			axs[i].plot(hist, color=color)
+
+	plt.tight_layout()
+	plt.show()
+
+	return matched
+
 
 def filter_depth_img(img_depth: np.array, poly: np.array) -> np.array:
 	"""
@@ -63,10 +113,10 @@ def calc_cone_polygon(img_color: np.array) -> np.array:
 	Calculates polygon around the traffic cone. 
 	"""
 	#TODO: Histogram matching.
-	# Boundaries
+	# Boundaries - #! red lower: between 180-200
 	lower, upper = (
 		np.array([0, 0, 200], dtype=np.uint8), 
-		np.array([121, 151, 255], dtype=np.uint8)
+		np.array([121, 200, 255], dtype=np.uint8)
 	)
 	# find the colors within the specified boundaries and apply
 	# the mask
@@ -82,9 +132,15 @@ def calc_cone_polygon(img_color: np.array) -> np.array:
 		img_edges.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
 	)
 	sorted_cnts = sorted(cnts, key=cv.contourArea, reverse=True)[:1]
+
+	#? Is this the most efficient way to draw a convex hull?
+	hull = []
+	for i in range(len(sorted_cnts)):
+		hull.append(cv.convexHull(sorted_cnts[i], False))
+
 	polygon = np.zeros_like(img_edges)
 	cv.drawContours(
-		polygon, sorted_cnts, -1, (255, 255, 255), cv.FILLED
+		polygon, hull, -1, (255, 255, 255), cv.FILLED
 	)        
 	return polygon
 
@@ -120,10 +176,17 @@ def read_image_file(img_path: str) -> None:
 	print('[INFO] Image Loaded! (dtype: %s)' % img_color.dtype)
 
 	#######
-
 	# Custom functions here.
-	frame_processed = calc_cone_polygon(img_color)
 
+	# list images
+	# imgs = list( Path('src/test_imgs/problem').rglob('*.png'))
+	# for	img in imgs:
+	# 	img_color = cv.imread(str(img))
+	# 	img_ref = cv.imread("src/test_imgs/boja.png")
+	# 	img_color = match_hist(img_color, img_ref)
+	# 	frame_processed = calc_cone_polygon(img_color)
+
+	frame_processed = calc_cone_polygon(img_color)
 	#######
 
 	cv.imshow("Color Image", img_color)
@@ -147,14 +210,14 @@ def play_npy_dir(root_path: str, sleep_time: float=0.01) -> None:
 
 		# Custom functions here.
 		polygon = calc_cone_polygon(img_color)
-		img_depth_filtered = filter_depth_img(img_depth, polygon)
-		min_dist, avg_dist = calc_distance(img_depth_filtered)
-		center = get_cone_center(polygon)
+		# img_depth_filtered = filter_depth_img(img_depth, polygon)
+		# min_dist, avg_dist = calc_distance(img_depth_filtered)
+		# center = get_cone_center(polygon)
 
 		# Print results (debug)
-		print(f"Current center pixel (x,y): {center}")
-		print(f"Current minimum distance: {min_dist}")
-		print(f"Current average distance: {avg_dist}")
+		# print(f"Current center pixel (x,y): {center}")
+		# print(f"Current minimum distance: {min_dist}")
+		# print(f"Current average distance: {avg_dist}")
 		
 		#######
 
@@ -202,13 +265,13 @@ def play_mp4_file(file_name: str, is_resize: bool=True) -> None:
 def main(arg: str) -> None:
 
 	# image
-	#read_image_file(arg)
+	# read_image_file(arg)
 	
 	# .npy
-	play_npy_dir(arg)
+	# play_npy_dir(arg)
 
 	# .mp4
-	#play_mp4_file(arg)
+	play_mp4_file(arg)
 
 
 if __name__ == '__main__':
@@ -222,7 +285,7 @@ if __name__ == '__main__':
 	ap.add_argument(
 		"-v",
 		"--video",
-		default='20210323_113620.mp4', 
+		default='20210326_120239.mp4', 
 		help = "Path to video file."
 	)
 	ap.add_argument(
@@ -233,4 +296,4 @@ if __name__ == '__main__':
 	)
 	args = vars(ap.parse_args())
 	# change argument type if needed + switch function in main()
-	main(args["dir"])
+	main(args["video"])
