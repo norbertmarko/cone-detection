@@ -14,7 +14,11 @@ import matplotlib.pyplot as plt
 #TODO: Histogram matching. (1. go trough videos, cut images from bad result frames)
 #TODO: calc_distance: implement more precise calculations (car bounding box method?)
 #TODO: get_cone_center: implement a better solution
+<<<<<<< HEAD
 #TODO: check all functions for all .npy sequences
+=======
+#TODO: Detect Multiple Cones (structure results)
+>>>>>>> 5a234f7d13a705adf86ea0ae5bd11bf5fc3df734
 #TODO: fix contour area switching problem
 #TODO: (not priority!) try bilateral blur - reduces noise while preserving edges
 
