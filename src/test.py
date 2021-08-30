@@ -11,12 +11,14 @@ import matplotlib.pyplot as plt
 
 
 #! Think about how one could use these to filter drivable area
-#TODO: Histogram matching. (1. go trough videos, cut images from bad result frames)
-#TODO: calc_distance: implement more precise calculations (car bounding box method?)
-#TODO: get_cone_center: implement a better solution
+
+#TODO: calc_distance: implement more precise calculations (car bounding box method?
+# take minimum but exclude zeros
+# rewrite in meters
 #TODO: check all functions for all .npy sequences
-#TODO: Detect Multiple Cones (structure results)
 #TODO: fix contour area switching problem
+#TODO: get_cone_center: implement a better solution
+#TODO: Histogram matching. (1. go trough videos, cut images from bad result frames)
 #TODO: (not priority!) try bilateral blur - reduces noise while preserving edges
 
 
@@ -97,9 +99,8 @@ def get_cone_center(polygon: np.array) -> Tuple[int, int]:
 	on the image (x, y) from the
 	minimum enclosing circle.
 	"""
-	#TODO: implement a better solution
 	contours, _ = cv.findContours(
-		polygon, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
+	polygon, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
 	)
 	cnt = contours[0]
 	(x, y), r = cv.minEnclosingCircle(cnt)
@@ -107,6 +108,23 @@ def get_cone_center(polygon: np.array) -> Tuple[int, int]:
 	radius = int(r)
 
 	return center
+
+
+def visualize_cone_center(img_color: np.array, polygon: np.array, center: Tuple[int, int]) -> np.array:
+	"""
+	Visualizes the cone center on the color image.
+	"""
+	contours, _ = cv.findContours(
+		polygon.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
+	)
+	cnt = contours[0]
+	# draw the contour and center of the shape on the image
+	cv.drawContours(img_color, [cnt], -1, (0, 255, 0), 2)
+	cv.circle(img_color, (center[0], center[1]), 7, (0, 255, 0), -1)
+	cv.putText(img_color, "center", (center[0] - 20, center[1] - 20),
+		cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
+	return img_color
 
 
 def calc_cone_polygon(img_color: np.array) -> np.array:
@@ -205,25 +223,29 @@ def play_npy_dir(root_path: str, sleep_time: float=0.01) -> None:
 	(img_color_list, img_depth_list) = read_npy_dir(root_path)
 	for i in range(0, len(img_color_list)):
 		img_color = np.load(img_color_list[i])
-		img_depth = np.load(img_depth_list[i])
+		img_depth = cv.convertScaleAbs(np.load(img_depth_list[i]), alpha=0.03)
 
 		#######
 
 		# Custom functions here.
-		polygon = calc_cone_polygon(img_color)
-		# img_depth_filtered = filter_depth_img(img_depth, polygon)
-		# min_dist, avg_dist = calc_distance(img_depth_filtered)
-		# center = get_cone_center(polygon)
+		try:
+			polygon = calc_cone_polygon(img_color)
+			img_depth_filtered = filter_depth_img(img_depth.copy(), polygon)
+			min_dist, avg_dist = calc_distance(img_depth_filtered)
+			center = get_cone_center(polygon)
 
-		# Print results (debug)
-		# print(f"Current center pixel (x,y): {center}")
-		# print(f"Current minimum distance: {min_dist}")
-		# print(f"Current average distance: {avg_dist}")
+			# Print results (debug)
+			img_color = visualize_cone_center(img_color, polygon, center)
+			print(f"Current center pixel (x,y): {center}")
+			print(f"Current minimum distance: {min_dist}")
+			print(f"Current average distance: {avg_dist}")
+		except:
+			pass
 		
 		#######
 
 		cv.imshow("Color Image", img_color)
-		cv.imshow("Processed Image", polygon)
+		cv.imshow("Processed Image", img_depth_filtered)
 		if cv.waitKey(1) == ord('q'): break
 		time.sleep(sleep_time)
 
@@ -269,10 +291,10 @@ def main(arg: str) -> None:
 	# read_image_file(arg)
 	
 	# .npy
-	# play_npy_dir(arg)
+	play_npy_dir(arg)
 
 	# .mp4
-	play_mp4_file(arg)
+	# play_mp4_file(arg)
 
 
 if __name__ == '__main__':
@@ -280,7 +302,7 @@ if __name__ == '__main__':
 	ap.add_argument(
 		"-d",
 		"--dir",
-		default='./meresek/rec1/', 
+		default='./meresek_multiple_cone/rec2/', 
 		help = "Path to .npy directory."
 	)
 	ap.add_argument(
@@ -297,4 +319,4 @@ if __name__ == '__main__':
 	)
 	args = vars(ap.parse_args())
 	# change argument type if needed + switch function in main()
-	main(args["video"])
+	main(args["dir"])
