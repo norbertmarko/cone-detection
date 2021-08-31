@@ -87,10 +87,11 @@ def calc_distance(img_depth: np.array) -> Tuple[float, float]:
 	Returns the cone's minimal and average distance.
 	"""
 	#TODO: streamline function, implement more precise calculations
-	min_dist = np.max(img_depth[:, :])
-	avg_dist = np.average(img_depth[:, :])
+	min_dist = np.min(img_depth[np.nonzero(img_depth)])
+	avg_dist = np.average(img_depth[np.nonzero(img_depth)])
 
 	return (float(min_dist), float(avg_dist))
+
 
 
 def get_cone_center(polygon: np.array) -> Tuple[int, int]:
@@ -117,12 +118,14 @@ def visualize_cone_center(img_color: np.array, polygon: np.array, center: Tuple[
 	contours, _ = cv.findContours(
 		polygon.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
 	)
-	cnt = contours[0]
-	# draw the contour and center of the shape on the image
-	cv.drawContours(img_color, [cnt], -1, (0, 255, 0), 2)
-	cv.circle(img_color, (center[0], center[1]), 7, (0, 255, 0), -1)
-	cv.putText(img_color, "center", (center[0] - 20, center[1] - 20),
-		cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+	# cnt = contours[0]
+	for c in contours:
+
+		# draw the contour and center of the shape on the image
+		cv.drawContours(img_color, [c], -1, (0, 255, 0), 2)
+		cv.circle(img_color, (center[0], center[1]), 7, (0, 255, 0), -1)
+		cv.putText(img_color, "center", (center[0] - 20, center[1] - 20),
+			cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
 
 	return img_color
 
@@ -223,9 +226,10 @@ def play_npy_dir(root_path: str, sleep_time: float=0.01) -> None:
 	(img_color_list, img_depth_list) = read_npy_dir(root_path)
 	for i in range(0, len(img_color_list)):
 		img_color = np.load(img_color_list[i])
-		img_depth = cv.convertScaleAbs(np.load(img_depth_list[i]), alpha=0.03)
-
-		#######
+		img_depth = np.load(img_depth_list[i])
+		#cv.convertScaleAbs( , alpha=0.03)
+		
+		#####
 
 		# Custom functions here.
 		try:
@@ -237,15 +241,15 @@ def play_npy_dir(root_path: str, sleep_time: float=0.01) -> None:
 			# Print results (debug)
 			img_color = visualize_cone_center(img_color, polygon, center)
 			print(f"Current center pixel (x,y): {center}")
-			print(f"Current minimum distance: {min_dist}")
-			print(f"Current average distance: {avg_dist}")
+			print(f"Current minimum distance: {min_dist / 1000} m")
+			print(f"Current average distance: {avg_dist / 1000} m")
 		except:
 			pass
 		
-		#######
+		#####
 
 		cv.imshow("Color Image", img_color)
-		cv.imshow("Processed Image", img_depth_filtered)
+		cv.imshow("Processed Image", polygon)
 		if cv.waitKey(1) == ord('q'): break
 		time.sleep(sleep_time)
 
@@ -294,7 +298,7 @@ def main(arg: str) -> None:
 	play_npy_dir(arg)
 
 	# .mp4
-	# play_mp4_file(arg)
+	#play_mp4_file(arg)
 
 
 if __name__ == '__main__':
@@ -302,7 +306,7 @@ if __name__ == '__main__':
 	ap.add_argument(
 		"-d",
 		"--dir",
-		default='./meresek_multiple_cone/rec2/', 
+		default='./meresek_multiple_cone/rec0/', 
 		help = "Path to .npy directory."
 	)
 	ap.add_argument(

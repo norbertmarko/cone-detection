@@ -92,8 +92,8 @@ class ROSPublisher(Node):
 		Returns the cone's minimal and average distance.
 		"""
 		#TODO: streamline function, implement more precise calculations
-		min_dist = np.max(img_depth[:, :])
-		avg_dist = np.average(img_depth[:, :])
+		min_dist = np.min(img_depth[np.nonzero(img_depth)])
+		avg_dist = np.average(img_depth[np.nonzero(img_depth)])
 
 		return (float(min_dist), float(avg_dist))
 
@@ -114,6 +114,24 @@ class ROSPublisher(Node):
 		radius = int(r)
 
 		return center
+
+	def visualize_cone_center(self, img_color: np.array, polygon: np.array, center: Tuple[int, int]) -> np.array:
+		"""
+		Visualizes the cone center on the color image.
+		"""
+		contours, _ = cv.findContours(
+			polygon.copy(), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
+		)
+		# cnt = contours[0]
+		for c in contours:
+
+			# draw the contour and center of the shape on the image
+			cv.drawContours(img_color, [c], -1, (0, 255, 0), 2)
+			cv.circle(img_color, (center[0], center[1]), 7, (0, 255, 0), -1)
+			cv.putText(img_color, "center", (center[0] - 20, center[1] - 20),
+				cv.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 2)
+
+		return img_color
 
 
 	def calc_cone_polygon(self, img_color: np.array) -> np.array:
@@ -176,23 +194,24 @@ class ROSPublisher(Node):
 				center = self.get_cone_center(polygon)
 
 				# Print results (debug)
+				img_color = self.visualize_cone_center(img_color, polygon, center)
 				print(f"Current center pixel (x,y): {center}")
-				print(f"Current minimum distance: {min_dist}")
-				print(f"Current average distance: {avg_dist}")
+				print(f"Current minimum distance: {min_dist / 1000} m")
+				print(f"Current average distance: {avg_dist / 1000} m")
 
 				# Publish data
 				cone_center_msg = Int32MultiArray()
 				cone_center_msg.data = center
 
 				min_dist_msg = Float64()
-				min_dist_msg.data = min_dist
+				min_dist_msg.data = min_dist / 1000
 
 				avg_dist_msg = Float64()
-				avg_dist_msg.data = avg_dist
+				avg_dist_msg.data = avg_dist / 1000
 
 				#TODO: refactor to the same format as above
 				depth_img_msg = self.br.cv2_to_imgmsg(
-					np.uint8(img_depth_filtered), encoding='passthrough'
+					np.uint8(img_color), encoding='bgr8'
 				)
 				depth_img_msg.header = Header(
 					frame_id="depth", stamp=self.get_clock().now().to_msg()
