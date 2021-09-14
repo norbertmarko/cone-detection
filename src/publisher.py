@@ -10,7 +10,8 @@ from cv_bridge import CvBridge
 import pyrealsense2 as rs
 import cv2 as cv
 import numpy as np
-
+import math
+from math import sin, cos, degrees, atan2
 
 class ROSPublisher(Node):
 	
@@ -23,9 +24,28 @@ class ROSPublisher(Node):
 		self.pipeline = None
 		self.align = None
 		self.calibrate_camera()
+		
+		#### ORIENTATION
+		# ArUco stuff
+		self.arucoDict = cv.aruco.Dictionary_get(cv.aruco.DICT_4X4_50)
+		self.arucoParams = cv.aruco.DetectorParameters_create()
+		# cone orientation publisher (float32)
+		self.cone_orientation_publisher = self.create_publisher(
+			Float64, 'cv/top_orientation_cone', 10
+		)
+				# cone orientation visualizer (image)
+		self.cone_image_publisher = self.create_publisher(
+			Image, 'cv/top_visualization_cone', 10
+		)
+		# cone center point publisher (list: int32)
+		self.cone_center_publisher = self.create_publisher(
+			Int32MultiArray, 'cv/center_top_cone', 10
+		)
+		####	
+
 		# cone center point publisher (list: int32)
 		self.cone_center_publisher_ = self.create_publisher(
-			Int32MultiArray, 'cv/center_cone', 10
+			Int32MultiArray, 'cv/center_side_cone', 10
 		)
 		# minimum distance publisher (float64)
 		self.min_dist_publisher_ = self.create_publisher(
@@ -187,6 +207,69 @@ class ROSPublisher(Node):
 			)
 
 			try:
+				#### ORIENTATION
+				orientation = -1.0
+				center_x = -1
+				center_y = -1
+
+				(corners, ids, rejected) = cv.aruco.detectMarkers(img_color, self.arucoDict, parameters=self.arucoParams)
+				if len(corners) > 0:
+					# flatten the ArUco IDs list
+					ids = ids.flatten()
+
+					# loop over the detected ArUco corners
+					for (markerCorner, markerID) in zip(corners, ids):
+						# extract the marker corners (which are always returned in
+						# top-left, top-right, bottom-right, and bottom-left order)
+						corners = markerCorner.reshape((4, 2))
+						(topLeft, topRight, bottomRight, bottomLeft) = corners
+
+						# convert each of the (x, y)-coordinate pairs to integers
+						topRight = (int(topRight[0]), int(topRight[1]))
+						bottomRight = (int(bottomRight[0]), int(bottomRight[1]))
+						bottomLeft = (int(bottomLeft[0]), int(bottomLeft[1]))
+						topLeft = (int(topLeft[0]), int(topLeft[1]))
+
+						# compute the center (x, y)-coordinates of the ArUco marker
+						center_x = int((topLeft[0] + bottomRight[0]) / 2.0)
+						center_y = int((topLeft[1] + bottomRight[1]) / 2.0)
+
+						# compute the top side orientation of the ArUci marker 
+						orientation = degrees(atan2(abs(topLeft[0] - topRight[0]), abs(topLeft[1] - topRight[1])))
+
+						(x0, y0), (x1, y1) = topLeft, topRight
+
+						sideLength = math.sqrt((x0 - x1)**2 + (y0 - y1)**2)
+
+						print(sideLength)
+						
+						if x0 >= x1 and y0 <= y1:
+							orientation = 360 - orientation
+						
+						elif x0 >= x1 and y0 >= y1:
+							orientation = 180 + orientation
+
+						elif x0 <= x1 and y0 >= y1:
+							orientation = 180 - orientation
+
+						sx = int((x0 + x1) / 2.0)
+						sy = int((y0 + y1) / 2.0)
+
+						theta = np.deg2rad(orientation - 180)
+						rot = np.array([[cos(theta), -sin(theta)], [sin(theta), cos(theta)]])
+						v = np.array([0, sideLength * 4])
+						v2 = np.dot(rot, v)
+
+						cv.arrowedLine(img_color, (sx, sy), (int(sx + v2[1]), int(sy + v2[0])), (255, 0, 0), 5)
+						cv.circle(img_color, (center_x, center_y), int(sideLength / 3.0), (0, 255, 0), -1)
+						cv.putText(img_color, str(int(orientation)) + ", (" + str(center_x) + ", " + str(center_y) + ")", (10, 35), cv.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3, cv.LINE_AA)
+
+
+				print(orientation, center_x, center_y)
+
+
+				####
+				
 				# Process frame
 				polygon = self.calc_cone_polygon(img_color)
 				img_depth_filtered = self.filter_depth_img(img_depth, polygon)
@@ -200,6 +283,21 @@ class ROSPublisher(Node):
 				print(f"Current average distance: {avg_dist / 1000} m")
 
 				# Publish data
+
+				#### ORIENTATION
+				img_msg = self.br.cv2_to_imgmsg(np.uint8(img_color), encoding='bgr8')
+				img_msg.header = Header(frame_id="vis", stamp=self.get_clock().now().to_msg())
+				self.cone_image_publisher.publish(img_msg)
+
+				ori_msg = Float64()
+				ori_msg.data = orientation
+				self.cone_orientation_publisher.publish(ori_msg)
+
+				cone_center_msg = Int32MultiArray()
+				cone_center_msg.data = [center_x, center_y]
+				self.cone_center_publisher.publish(cone_center_msg)
+				####
+
 				cone_center_msg = Int32MultiArray()
 				cone_center_msg.data = center
 
