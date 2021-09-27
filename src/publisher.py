@@ -5,6 +5,9 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Header, Float64, Int32MultiArray
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import PointCloud2
+import sensor_msgs.msg as sensor_msgs
+import std_msgs.msg as std_msgs
 # Computer Vision Imports
 from cv_bridge import CvBridge
 import pyrealsense2 as rs
@@ -17,6 +20,10 @@ class ROSPublisher(Node):
 	
 	def __init__(self, timer_period=0.1):
 		super().__init__('computer_vision_publisher')
+
+		self.points = np.zeros((307200, 7))
+		self.cone_point = np.zeros((1, 7))
+
 		self.timer_period = timer_period
 		self.timer = self.create_timer(self.timer_period, self.timer_callback)
 		self.br = CvBridge()
@@ -59,6 +66,8 @@ class ROSPublisher(Node):
 		self.depth_image_publisher_ = self.create_publisher(
 			Image, 'cv/depth_image_cone', 10
 		)
+		self.pcd_all_publisher = self.create_publisher(PointCloud2, 'cv/all_pcd', 10)
+		self.pcd_cone_publisher = self.create_publisher(PointCloud2, 'cv/cone_pcd', 10)
 
 
 	def calibrate_camera(self) -> None:
@@ -94,6 +103,7 @@ class ROSPublisher(Node):
 
 		align_to = rs.stream.color
 		self.align = rs.align(align_to)
+		self.intr = profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
 
 
 	def filter_depth_img(self, img_depth: np.array, poly: np.array) -> np.array:
@@ -128,6 +138,9 @@ class ROSPublisher(Node):
 		contours, _ = cv.findContours(
 			polygon, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE
 		)
+		if len(contours) == 0:
+			return (-1, -1)
+
 		cnt = contours[0]
 		(x, y), r = cv.minEnclosingCircle(cnt)
 		center = [int(x), int(y)]
@@ -185,7 +198,7 @@ class ROSPublisher(Node):
 		polygon = np.zeros_like(img_edges)
 		cv.drawContours(
 			polygon, hull, -1, (255, 255, 255), cv.FILLED
-		)        
+		)		
 		return polygon
 
 
@@ -205,6 +218,7 @@ class ROSPublisher(Node):
 			img_color = np.asanyarray(
 				aligned_frames.get_color_frame().get_data()
 			)
+			depth_frame = aligned_frames.get_depth_frame().as_depth_frame()
 
 			try:
 				#### ORIENTATION
@@ -268,13 +282,32 @@ class ROSPublisher(Node):
 				print(orientation, center_x, center_y)
 
 
+				num = 0
+
+				for i in range(0, img_color.shape[0], 10):
+					for j in range(0, img_color.shape[1], 10):
+						position = rs.rs2_deproject_pixel_to_point(self.intr, (j, i), depth_frame.get_distance(j, i))
+						self.points[num, 0] = position[0]
+						self.points[num, 1] = position[1]
+						self.points[num, 2] = position[2]
+						self.points[num, 3] = img_color[i, j, 2] / 255.0
+						self.points[num, 4] = img_color[i, j, 1] / 255.0
+						self.points[num, 5] = img_color[i, j, 0] / 255.0
+						self.points[num, 6] = 0.5
+						num += 1
+				
+				self.pcd = point_cloud(self.points, 'map')
+				self.pcd_all_publisher.publish(self.pcd)
+
+
 				####
 				
 				# Process frame
 				polygon = self.calc_cone_polygon(img_color)
 				img_depth_filtered = self.filter_depth_img(img_depth, polygon)
-				min_dist, avg_dist = self.calc_distance(img_depth_filtered)
+				min_dist, avg_dist = 0, 0 #self.calc_distance(img_depth_filtered)
 				center = self.get_cone_center(polygon)
+
 
 				# Print results (debug)
 				img_color = self.visualize_cone_center(img_color, polygon, center)
@@ -319,6 +352,23 @@ class ROSPublisher(Node):
 				self.min_dist_publisher_.publish(min_dist_msg)
 				self.avg_dist_publisher_.publish(avg_dist_msg)
 				self.depth_image_publisher_.publish(depth_img_msg)
+
+				if not(center[0] == -1):
+					position = rs.rs2_deproject_pixel_to_point(self.intr, center, depth_frame.get_distance(center[0], center[1]))
+					self.cone_point[0, 0] = position[0]
+					self.cone_point[0, 1] = position[1]
+					self.cone_point[0, 2] = position[2]
+					self.cone_point[0, 3] = 0.0
+					self.cone_point[0, 4] = 1.0
+					self.cone_point[0, 5] = 0.0
+					self.cone_point[0, 6] = 0.0
+
+					self.pcd = point_cloud(self.cone_point, 'map')
+					self.pcd_cone_publisher.publish(self.pcd)
+				else:
+					self.pcd = point_cloud(np.zeros((0, 3)), 'map')
+					self.pcd_cone_publisher.publish(self.pcd)
+
 				self.get_logger().info('Publishing...')
 			except Exception as e:
 				print(
@@ -331,6 +381,31 @@ class ROSPublisher(Node):
 			print("[INFO] Video sequence terminated.")
 		finally:
 			cv.destroyAllWindows()
+
+def point_cloud(points, parent_frame):
+	ros_dtype = sensor_msgs.PointField.FLOAT32
+	dtype = np.float32
+	itemsize = np.dtype(dtype).itemsize
+
+	data = points.astype(dtype).tobytes() 
+
+	fields = [sensor_msgs.PointField(
+		name=n, offset=i*itemsize, datatype=ros_dtype, count=1)
+		for i, n in enumerate('xyzrgba')]
+
+	header = std_msgs.Header(frame_id=parent_frame)
+
+	return sensor_msgs.PointCloud2(
+		header=header,
+		height=1, 
+		width=points.shape[0],
+		is_dense=False,
+		is_bigendian=False,
+		fields=fields,
+		point_step=(itemsize * 7),
+		row_step=(itemsize * 7 * points.shape[0]),
+		data=data
+	)
 
 
 def main(args=None) -> None:
